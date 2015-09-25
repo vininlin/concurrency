@@ -12,6 +12,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.commons.lang.StringUtils;
 
+import basic.SleepUtils;
+
 /**
  * 类/接口注释
  * 
@@ -47,17 +49,23 @@ public class FairAndNonFairLockTest {
         
         @Override
         public void run(){
-            ReentrantLock2 reLock = (ReentrantLock2)lock;
-            reLock.lock();
-            System.out.println("Locked by [" + reLock.getOwner() + "];" +
-            		"waiting by [" + StringUtils.join(reLock.getQueuedThread(),",") + "]");
-            reLock.unlock();
-            
+            while(true){
+                ReentrantLock2 reLock = (ReentrantLock2)lock;
+                reLock.lock();
+                try{
+                    SleepUtils.second(1);
+                    System.out.println("Locked by [" + reLock.getOwner().getName() + "];" +
+                            "waiting by [" + StringUtils.join(reLock.getQueuedThreads(),",") + "]");
+                }finally{
+                    reLock.unlock();
+                }
+            }
         }
     }
 
     public static void main(String[] args) {
-        testFairLock();
+        //testFairLock();
+        testNonFairLock();
     }
     
     private static class ReentrantLock2 extends ReentrantLock{
@@ -66,7 +74,7 @@ public class FairAndNonFairLockTest {
             super(fair);
         }
         //获取等待队列中的线程
-        public Collection<Thread> getQueuedThread(){
+        public Collection<Thread> getQueuedThreads(){
             List<Thread> threadList = new ArrayList<Thread>(super.getQueuedThreads());
             Collections.reverse(threadList);
             return threadList;
