@@ -7,6 +7,7 @@
 
 package collections;
 import java.util.concurrent.ConcurrentMap;
+
 import java.util.concurrent.locks.*;
 import java.util.*;
 import java.io.Serializable;
@@ -14,7 +15,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-import lock.source.ReentrantLock;
 
 /**
  * A hash table supporting full concurrency of retrievals and
@@ -173,6 +173,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * @return the segment
      */
     final Segment<K,V> segmentFor(int hash) {
+    	System.out.println("segment index="+((hash >>> segmentShift) & segmentMask));
         return segments[(hash >>> segmentShift) & segmentMask];
     }
 
@@ -421,12 +422,21 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                 if (c++ > threshold) // ensure capacity
                     rehash();
                 HashEntry<K,V>[] tab = table;
+                System.out.println("k="+key+";hash="+hash+";value="+value+";tab.length="+tab.length);
                 int index = hash & (tab.length - 1);
+                System.out.println("put,index="+index);
                 HashEntry<K,V> first = tab[index];
+                if(first != null){
+                	System.out.println("put,index="+index+";k="+first.key+";v="+first.value);
+                }
+                
                 HashEntry<K,V> e = first;
-                while (e != null && (e.hash != hash || !key.equals(e.key)))
-                    e = e.next;
-
+                while (e != null && (e.hash != hash || !key.equals(e.key))){
+                	System.out.println("hash="+e.hash+";k="+e.key+";v="+e.value);
+                	e = e.next;
+                }
+                    
+                System.out.println("e="+e);
                 V oldValue;
                 if (e != null) {
                     oldValue = e.value;
@@ -517,25 +527,47 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             try {
                 int c = count - 1;
                 HashEntry<K,V>[] tab = table;
+                for(int i = 0 ; i < tab.length; i++){
+                	HashEntry first = tab[i];
+                	if(first == null){
+                		System.out.println("entry;i="+i);
+                	}else{
+                		System.out.println("entry;i="+i+";k="+first.key+";v="+first.value);
+                		 for (HashEntry<K,V> p = first; p != first; p = p.next){
+                         	System.out.println("p.key="+p.key+";p.value"+p.value);
+                         }
+                	}
+                }
+                System.out.println("k="+key+";hash="+hash+";value="+value+";tab.length="+tab.length);
                 int index = hash & (tab.length - 1);
+                System.out.println("index="+index);
                 HashEntry<K,V> first = tab[index];
+                if(first != null){
+                	System.out.println("first;k="+first.key+";v="+first.value);
+                }
+                
                 HashEntry<K,V> e = first;
                 while (e != null && (e.hash != hash || !key.equals(e.key)))
                     e = e.next;
-
                 V oldValue = null;
                 if (e != null) {
                     V v = e.value;
+                    System.out.println("old.value="+e.value);
                     if (value == null || value.equals(v)) {
                         oldValue = v;
-                        // All entries following removed node can stay
-                        // in list, but all preceding ones need to be
-                        // cloned.
+                        //在被删除节点后台的节点保留，而所有前面的节点都复制
                         ++modCount;
                         HashEntry<K,V> newFirst = e.next;
-                        for (HashEntry<K,V> p = first; p != e; p = p.next)
-                            newFirst = new HashEntry<K,V>(p.key, p.hash,
-                                                          newFirst, p.value);
+                        if(newFirst != null){
+                        	System.out.println("newFirst.value="+newFirst.value);
+                        }
+                        
+                        for (HashEntry<K,V> p = first; p != e; p = p.next){
+                        	System.out.println("p.key="+p.key+";p.value"+p.value);
+                        	newFirst = new HashEntry<K,V>(p.key, p.hash,
+                                    newFirst, p.value);
+                        }
+                            
                         tab[index] = newFirst;
                         count = c; // write-volatile
                     }
@@ -599,6 +631,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         }
         segmentShift = 32 - sshift;
         segmentMask = ssize - 1;
+        System.out.println("segmentShift="+segmentShift);
+        System.out.println("segmentMask="+segmentMask);
         this.segments = Segment.newArray(ssize);
 
         if (initialCapacity > MAXIMUM_CAPACITY)
@@ -609,7 +643,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         int cap = 1;
         while (cap < c)
             cap <<= 1;
-
+        System.out.println("cap="+cap);
         for (int i = 0; i < this.segments.length; ++i)
             this.segments[i] = new Segment<K,V>(cap, loadFactor);
     }
