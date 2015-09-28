@@ -317,11 +317,9 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         }
 
         /**
-         * Reads value field of an entry under lock. Called if value
-         * field ever appears to be null. This is possible only if a
-         * compiler happens to reorder a HashEntry initialization with
-         * its table assignment, which is legal under memory model
-         * but is not known to ever occur.
+         * 在value为null时调用。只有编译器刚好在HashEntry初始化它的table声明时发生，
+         * 即tab[index]= new HashEntry()时，
+         * 对于内存模型是合法的，但是执行中不知道有没有发生；
          */
         V readValueUnderLock(HashEntry<K,V> e) {
             lock();
