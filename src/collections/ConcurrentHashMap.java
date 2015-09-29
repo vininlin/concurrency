@@ -527,47 +527,27 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             try {
                 int c = count - 1;
                 HashEntry<K,V>[] tab = table;
-                for(int i = 0 ; i < tab.length; i++){
-                	HashEntry first = tab[i];
-                	if(first == null){
-                		System.out.println("entry;i="+i);
-                	}else{
-                		System.out.println("entry;i="+i+";k="+first.key+";v="+first.value);
-                		 for (HashEntry<K,V> p = first; p != first; p = p.next){
-                         	System.out.println("p.key="+p.key+";p.value"+p.value);
-                         }
-                	}
-                }
-                System.out.println("k="+key+";hash="+hash+";value="+value+";tab.length="+tab.length);
                 int index = hash & (tab.length - 1);
-                System.out.println("index="+index);
                 HashEntry<K,V> first = tab[index];
-                if(first != null){
-                	System.out.println("first;k="+first.key+";v="+first.value);
-                }
-                
                 HashEntry<K,V> e = first;
+                //遍历hash链表，找到匹配的节点
                 while (e != null && (e.hash != hash || !key.equals(e.key)))
                     e = e.next;
                 V oldValue = null;
                 if (e != null) {
                     V v = e.value;
-                    System.out.println("old.value="+e.value);
                     if (value == null || value.equals(v)) {
                         oldValue = v;
-                        //在被删除节点后台的节点保留，而所有前面的节点都复制
                         ++modCount;
+                        //获取要删除节点的下一节点
                         HashEntry<K,V> newFirst = e.next;
-                        if(newFirst != null){
-                        	System.out.println("newFirst.value="+newFirst.value);
-                        }
-                        
+                        //在被删除节点后继的节点都保留，而所有前面的节点都复制
                         for (HashEntry<K,V> p = first; p != e; p = p.next){
-                        	System.out.println("p.key="+p.key+";p.value"+p.value);
+                        	//被删除节点的前面所有节点复制产生的链表顺序将和以前相反
+                            //因为后面的节点最后遍历作为首节点添加到链接首部
                         	newFirst = new HashEntry<K,V>(p.key, p.hash,
                                     newFirst, p.value);
                         }
-                            
                         tab[index] = newFirst;
                         count = c; // write-volatile
                     }
@@ -753,10 +733,12 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         int[] mc = new int[segments.length];
         // Try a few times to get accurate count. On failure due to
         // continuous async changes in table, resort to locking.
+        //循环两次，通过计算对比，直接得到集合的长度
         for (int k = 0; k < RETRIES_BEFORE_LOCK; ++k) {
             check = 0;
             sum = 0;
             int mcsum = 0;
+            //计算count的和、modCount的和
             for (int i = 0; i < segments.length; ++i) {
                 sum += segments[i].count;
                 mcsum += mc[i] = segments[i].modCount;
@@ -764,15 +746,18 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             if (mcsum != 0) {
                 for (int i = 0; i < segments.length; ++i) {
                     check += segments[i].count;
+                    //说明在循环时，map发生了变化。再重试1次
                     if (mc[i] != segments[i].modCount) {
                         check = -1; // force retry
                         break;
                     }
                 }
             }
+            //如果相等，说明此时的长度就是count的sum;
             if (check == sum)
                 break;
         }
+        //如果失败，则通过对segments顺序加锁计算出map的长度
         if (check != sum) { // Resort to locking all segments
             sum = 0;
             for (int i = 0; i < segments.length; ++i)
@@ -782,6 +767,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             for (int i = 0; i < segments.length; ++i)
                 segments[i].unlock();
         }
+        //如果长度大于Integer.MAX_VALUE，直接返回Integer.MAX_VALUE
         if (sum > Integer.MAX_VALUE)
             return Integer.MAX_VALUE;
         else
