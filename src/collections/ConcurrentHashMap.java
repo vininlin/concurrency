@@ -535,6 +535,9 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                 		System.out.println("entry;i="+i);
                 	}else{
                 		System.out.println("entry;i="+i+";k="+first.key+";v="+first.value);
+                		if(first.next != null){
+                			System.out.println("entry;i="+i+";k="+first.next.key+";v="+first.next.value);
+                		}
                 		 for (HashEntry<K,V> p = first; p != first; p = p.next){
                          	System.out.println("p.key="+p.key+";p.value"+p.value);
                          }
