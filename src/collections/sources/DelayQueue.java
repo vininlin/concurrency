@@ -5,7 +5,7 @@
  * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
  */
 
-package collections;
+package collections.sources;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
@@ -85,8 +85,11 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            //取出优先级最高的元素，不移除
             E first = q.peek();
             q.offer(e);
+            //如果获取到优先级最高的元素为null,说明队列为空
+            //或者当前添加的元素优先级比队列中的最高优化级元素低，则通知等待队列中的线程
             if (first == null || e.compareTo(first) < 0)
                 available.signalAll();
             return true;
@@ -129,14 +132,19 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      */
     public E poll() {
         final ReentrantLock lock = this.lock;
+        //不响应中断
         lock.lock();
         try {
+            //获取优化级最高的元素
             E first = q.peek();
+            //元素为空或者元素还未到元素的出队时间，返回空
             if (first == null || first.getDelay(TimeUnit.NANOSECONDS) > 0)
                 return null;
             else {
+                //出队
                 E x = q.poll();
                 assert x != null;
+                //队列不为空，则全部通知等待队列中的线程继续出队
                 if (q.size() != 0)
                     available.signalAll();
                 return x;
@@ -155,17 +163,24 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      */
     public E take() throws InterruptedException {
         final ReentrantLock lock = this.lock;
+        //响应中断
         lock.lockInterruptibly();
         try {
+            //自旋
             for (;;) {
+                //获取队列中优化级最高的元素
                 E first = q.peek();
                 if (first == null) {
+                    //元素为空，则阻塞，释放锁，进入Condition等待队列
                     available.await();
                 } else {
+                    //元素不为空，则获取元素的延迟时间
                     long delay =  first.getDelay(TimeUnit.NANOSECONDS);
+                    //延迟时间>0，继续释放锁，进入有时间的等待
                     if (delay > 0) {
                         long tl = available.awaitNanos(delay);
                     } else {
+                        //否则，出队，并通知其它出队线程
                         E x = q.poll();
                         assert x != null;
                         if (q.size() != 0)

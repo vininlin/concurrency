@@ -3,7 +3,7 @@
  * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
  */
 
-package collections;
+package collections.sources;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;

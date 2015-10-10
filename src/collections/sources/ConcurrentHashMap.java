@@ -5,7 +5,7 @@
 * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
 */
 
-package collections;
+package collections.sources;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.*;
 import java.util.*;

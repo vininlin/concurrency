@@ -5,7 +5,7 @@
  * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
  */
 
-package collections;
+package collections.sources;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
@@ -315,8 +315,11 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
 
             for (;;) {
                 SNode h = head;
+                //头节点为空或匹配操作模式
                 if (h == null || h.mode == mode) {  // empty or same-mode
+                    //非等待操作
                     if (timed && nanos <= 0) {      // can't wait
+                        //如果头节点已经取消，换下一个节点
                         if (h != null && h.isCancelled())
                             casHead(h, h.next);     // pop cancelled node
                         else
@@ -739,11 +742,11 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                     advanceHead(h, hn);
                     continue;
                 }
-		QNode t = tail;      // Ensure consistent read for tail
+                QNode t = tail;      // Ensure consistent read for tail
                 if (t == h)
                     return;
-		QNode tn = t.next;
-		if (t != tail)
+        		QNode tn = t.next;
+        		if (t != tail)
                     continue;
                 if (tn != null) {
                     advanceTail(t, tn);
@@ -810,9 +813,9 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
     public void put(E o) throws InterruptedException {
         if (o == null) throw new NullPointerException();
         if (transferer.transfer(o, false, 0) == null) {
-	    Thread.interrupted();
+            Thread.interrupted();
             throw new InterruptedException();
-	}
+        }
     }
 
     /**
@@ -859,7 +862,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
         Object e = transferer.transfer(null, false, 0);
         if (e != null)
             return (E)e;
-	Thread.interrupted();
+        Thread.interrupted();
         throw new InterruptedException();
     }
 

@@ -5,7 +5,7 @@
  * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
  */
 
-package collections;
+package collections.sources;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -165,6 +165,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
         try {
             boolean ok = q.offer(e);
             assert ok;
+            //通知阻塞在等待队列中的出队线程
             notEmpty.signal();
             return true;
         } finally {
@@ -218,12 +219,14 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
         lock.lockInterruptibly();
         try {
             try {
+                //如果队列为空，则进入等待队列
                 while (q.size() == 0)
                     notEmpty.await();
             } catch (InterruptedException ie) {
                 notEmpty.signal(); // propagate to non-interrupted thread
                 throw ie;
             }
+            //从等待中返回，出队
             E x = q.poll();
             assert x != null;
             return x;

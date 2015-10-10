@@ -1,5 +1,7 @@
 package collections;
 
+import collections.sources.ConcurrentHashMap;
+
 public class TestConcurrentHashMap {
 
 	public static void main(String[] args) {

@@ -5,7 +5,7 @@
  * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
  */
 
-package collections;
+package collections.sources;
 import java.util.*;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -77,7 +77,7 @@ public class LinkedBlockingDeque<E>
         * The item, or null if this node has been removed.
         */
 
-	E item;
+        E item;
 
         /**
          * One of:
@@ -103,19 +103,19 @@ public class LinkedBlockingDeque<E>
         }
     }
 
-    /** Pointer to first node */
+    /**指向首节点 */
     transient Node<E> first;
-    /** Pointer to last node */
+    /** 指向尾节点 */
     transient Node<E> last;
-    /** Number of items in the deque */
+    /** deque中的元素数量 */
     private transient int count;
-    /** Maximum number of items in the deque */
+    /**  deque的容量 */
     private final int capacity;
-    /** Main lock guarding all access */
+    /** 并发访问控制锁 */
     final ReentrantLock lock = new ReentrantLock();
-    /** Condition for waiting takes */
+    /** 移出等待条件 */
     private final Condition notEmpty = lock.newCondition();
-    /** Condition for waiting puts */
+    /**添加等待条件 */
     private final Condition notFull = lock.newCondition();
 
     /**
@@ -167,7 +167,7 @@ public class LinkedBlockingDeque<E>
     // Basic linking and unlinking operations, called only while holding lock
 
     /**
-     * Links e as first element, or returns false if full.
+     * 添加头节点.
      */
     private boolean linkFirst(E e) {
         // assert lock.isHeldByCurrentThread();
@@ -186,7 +186,7 @@ public class LinkedBlockingDeque<E>
     }
 
     /**
-     * Links e as last element, or returns false if full.
+     *添加尾节点
      */
     private boolean linkLast(E e) {
         // assert lock.isHeldByCurrentThread();
@@ -205,7 +205,7 @@ public class LinkedBlockingDeque<E>
     }
 
     /**
-     * Removes and returns first element, or null if empty.
+     * 移除头节点.
      */
     private E unlinkFirst() {
         // assert lock.isHeldByCurrentThread();
@@ -227,7 +227,7 @@ public class LinkedBlockingDeque<E>
     }
 
     /**
-     * Removes and returns last element, or null if empty.
+     *移出尾节点.
      */
     private E unlinkLast() {
         // assert lock.isHeldByCurrentThread();
@@ -328,6 +328,7 @@ public class LinkedBlockingDeque<E>
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            //添加到队列头部失败，释放锁，进入Condition等待队列
             while (!linkFirst(e))
                 notFull.await();
         } finally {
@@ -344,6 +345,7 @@ public class LinkedBlockingDeque<E>
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+          //添加到队列尾部部失败，释放锁，进入Condition等待队列
             while (!linkLast(e))
                 notFull.await();
         } finally {
@@ -358,7 +360,7 @@ public class LinkedBlockingDeque<E>
     public boolean offerFirst(E e, long timeout, TimeUnit unit)
         throws InterruptedException {
         if (e == null) throw new NullPointerException();
-	long nanos = unit.toNanos(timeout);
+        long nanos = unit.toNanos(timeout);
         final ReentrantLock lock = this.lock;
         lock.lockInterruptibly();
         try {
@@ -461,7 +463,7 @@ public class LinkedBlockingDeque<E>
 
     public E pollFirst(long timeout, TimeUnit unit)
         throws InterruptedException {
-	long nanos = unit.toNanos(timeout);
+        long nanos = unit.toNanos(timeout);
         final ReentrantLock lock = this.lock;
         lock.lockInterruptibly();
         try {
