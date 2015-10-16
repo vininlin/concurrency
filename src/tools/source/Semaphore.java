@@ -151,8 +151,9 @@ public class Semaphore implements java.io.Serializable {
         final int getPermits() {
             return getState();
         }
-
+        //非公平版本，允许线程闯入
         final int nonfairTryAcquireShared(int acquires) {
+            //自旋至成功返回剩下许可数
             for (;;) {
                 int available = getState();
                 int remaining = available - acquires;
@@ -161,7 +162,9 @@ public class Semaphore implements java.io.Serializable {
                     return remaining;
             }
         }
-
+        /**
+         * 公平/非公平版本，释放许可，不一定是持有的线程来释放
+         */
         protected final boolean tryReleaseShared(int releases) {
             for (;;) {
                 int p = getState();
@@ -197,7 +200,7 @@ public class Semaphore implements java.io.Serializable {
         NonfairSync(int permits) {
             super(permits);
         }
-
+        //实现非公平版本的获取许可
         protected int tryAcquireShared(int acquires) {
             return nonfairTryAcquireShared(acquires);
         }
@@ -213,8 +216,12 @@ public class Semaphore implements java.io.Serializable {
             super(permits);
         }
 
+        /**
+         * 公平版本的获取许可方法
+         */
         protected int tryAcquireShared(int acquires) {
             Thread current = Thread.currentThread();
+            //自旋，如果当前线程不是队列头部中的线程，则继续，直到成功或返回-1失败
             for (;;) {
                 Thread first = getFirstQueuedThread();
                 if (first != null && first != current)

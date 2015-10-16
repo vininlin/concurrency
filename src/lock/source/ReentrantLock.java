@@ -129,7 +129,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
             return false;
         }
 
-        //释放同步状态，公平和非公会锁都使用此方法释放锁
+        //释放同步状态，公平和非公平锁都使用此方法释放锁
         protected final boolean tryRelease(int releases) {
             int c = getState() - releases;
             if (Thread.currentThread() != getExclusiveOwnerThread())

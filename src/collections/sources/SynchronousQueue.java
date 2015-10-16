@@ -197,6 +197,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
         static final int FULFILLING = 2;
 
         /** Return true if m has fulfilling bit set */
+        //m为0或1时，返回false
         static boolean isFulfilling(int m) { return (m & FULFILLING) != 0; }
 
         /** Node class for TransferStacks. */
@@ -236,11 +237,14 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
              * @return true if successfully matched to s
              */
             boolean tryMatch(SNode s) {
+                System.out.println(Thread.currentThread().getId() + "update this="+this+";match="+this.match);
                 if (match == null &&
                     matchUpdater.compareAndSet(this, null, s)) {
+                    System.out.println(Thread.currentThread().getId() + "update this="+this+";match="+s);
                     Thread w = waiter;
                     if (w != null) {    // waiters need at most one unpark
                         waiter = null;
+                        //唤醒对方等待的线程
                         LockSupport.unpark(w);
                     }
                     return true;
@@ -295,7 +299,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
              * 1. If apparently empty or already containing nodes of same
              *    mode, try to push node on stack and wait for a match,
              *    returning it, or null if cancelled.
-             *
+             *如果栈为空或者已经包含相同模式的节点，把节点推到栈上等待匹配
              * 2. If apparently containing node of complementary mode,
              *    try to push a fulfilling node on to stack, match
              *    with corresponding waiting node, pop both from
@@ -311,43 +315,61 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
              */
 
             SNode s = null; // constructed/reused as needed
+            //e为null时，表示操作想从栈中获取数据，比如take方法
+            //e不为空时，表示携带数据入栈，如put方法
             int mode = (e == null)? REQUEST : DATA;
-
+            System.out.println(Thread.currentThread().getId() + " transfer ,mode="+mode);
+            //自旋
             for (;;) {
                 SNode h = head;
+                System.out.println(Thread.currentThread().getId() + " transfer ,head="+head+";h="+h);
                 //头节点为空或匹配操作模式
                 if (h == null || h.mode == mode) {  // empty or same-mode
-                    //非等待操作
+                    //等待超时版本，如put/take 的超时方法
                     if (timed && nanos <= 0) {      // can't wait
                         //如果头节点已经取消，换下一个节点
                         if (h != null && h.isCancelled())
                             casHead(h, h.next);     // pop cancelled node
                         else
                             return null;
-                    } else if (casHead(h, s = snode(s, e, h, mode))) {
+                    } else if (casHead(h, s = snode(s, e, h, mode))) {//构造s节点指向头节点
+                        //等待对方线程满足匹配
+                        System.out.println(Thread.currentThread().getId() + " push to stack, awaitFulfill,s="+s+";s.match="+s.match);
                         SNode m = awaitFulfill(s, timed, nanos);
+                        System.out.println(Thread.currentThread().getId() + " isFulfill,match node="+m);
                         if (m == s) {               // wait was cancelled
                             clean(s);
                             return null;
                         }
+                        //等待中返回后
                         if ((h = head) != null && h.next == s)
                             casHead(h, s.next);     // help s's fulfiller
+                        //如果为take操作，返回匹配的节点中的元素，put操作返回当前节点
+                        System.out.println(Thread.currentThread().getId() + " return ,m.item="+m.item+";s.itme="+s.item);
                         return mode == REQUEST? m.item : s.item;
                     }
-                } else if (!isFulfilling(h.mode)) { // try to fulfill
+                } else if (!isFulfilling(h.mode)) { // try to fulfill，栈顶存在节点，如果为mode=0或1时
+                    //头节点取消，把下一个节点替换头节点
                     if (h.isCancelled())            // already cancelled
                         casHead(h, h.next);         // pop and retry
                     else if (casHead(h, s=snode(s, e, h, FULFILLING|mode))) {
+                        System.out.println(Thread.currentThread().getId() + " try to fulfill ,h="+h+";s="+s);
                         for (;;) { // loop until matched or waiters disappear
                             SNode m = s.next;       // m is s's match
+                            System.out.println(Thread.currentThread().getId() + " loop to  match ,h="+h+";m="+s.next);
                             if (m == null) {        // all waiters are gone
                                 casHead(s, null);   // pop fulfill node
                                 s = null;           // use new node next time
                                 break;              // restart main loop
                             }
                             SNode mn = m.next;
+                            System.out.println(Thread.currentThread().getId() + " tryMatch,mn="+mn);
+                            //更新m,即对方线程的node的match节点为当前线程的节点s
                             if (m.tryMatch(s)) {
+                                //两个节点都出栈
                                 casHead(s, mn);     // pop both s and m
+                                //如果是take操作，返回对方线程node中的元素，否则返回当前线程栈中的元素
+                                System.out.println(Thread.currentThread().getId() + " return  ,m.item="+m.item+";s.item="+s.item+";s.match="+s.match);
                                 return (mode == REQUEST)? m.item : s.item;
                             } else                  // lost match
                                 s.casNext(m, mn);   // help unlink
@@ -407,9 +429,11 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
             for (;;) {
                 if (w.isInterrupted())
                     s.tryCancel();
+                //获取匹配的节点
                 SNode m = s.match;
                 if (m != null)
                     return m;
+                //超时逻辑
                 if (timed) {
                     long now = System.nanoTime();
                     nanos -= now - lastTime;
@@ -419,13 +443,17 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                         continue;
                     }
                 }
+                //需要循环的时间片
                 if (spins > 0)
                     spins = shouldSpin(s)? (spins-1) : 0;
                 else if (s.waiter == null)
+                    //设置s节点中的等待线程
                     s.waiter = w; // establish waiter so can park next iter
                 else if (!timed)
+                    //时间用完还未匹配，阻塞当前节点线程
                     LockSupport.park(this);
                 else if (nanos > spinForTimeoutThreshold)
+                    //带超时时间的阻塞
                     LockSupport.parkNanos(this, nanos);
             }
         }
@@ -623,6 +651,8 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
              */
 
             QNode s = null; // constructed/reused as needed
+            //e!=null,表示添加元素，如put
+            //e =null,表示移除元素，如take
             boolean isData = (e != null);
 
             for (;;) {
@@ -630,23 +660,34 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                 QNode h = head;
                 if (t == null || h == null)         // saw uninitialized value
                     continue;                       // spin
-
+                //空队列或队列的尾节点的操作模式与当前线程操作相同 
+                System.out.println(Thread.currentThread().getId() + " judge queue ,h==t："+(h==t)+";t.isData="+t.isData+";isData="+isData);
                 if (h == t || t.isData == isData) { // empty or same-mode
                     QNode tn = t.next;
+                    //tail节点已经被别的线程修改
                     if (t != tail)                  // inconsistent read
                         continue;
+                    //t有next节点，说明它已经不是尾节点，把tn作为尾节点
                     if (tn != null) {               // lagging tail
                         advanceTail(t, tn);
                         continue;
                     }
+                    //超时版本的方法并且已经超时，返回null
                     if (timed && nanos <= 0)        // can't wait
                         return null;
+                    //创建一个队列节点，如果两个线程都创建成功，在casNext时，只能一个成功
+                    System.out.println(Thread.currentThread().getId() + " create s node ,s="+s);
                     if (s == null)
                         s = new QNode(e, isData);
+                    //把s节点连接到队列尾节点的next上
+                    System.out.println(Thread.currentThread().getId() + " t.casNext link in s node ,s="+s);
+                    //如果同时两个线程都到达，只有一个成功，失败者跳出此逻辑到达else分支
                     if (!t.casNext(null, s))        // failed to link in
                         continue;
-
+                    //把tail节点指向s节点
                     advanceTail(t, s);              // swing tail and wait
+                    System.out.println(Thread.currentThread().getId() + " advanceTail s to t, ,h="+h+";t="+t+";h="+h);
+                    //等待对方匹配线程进行交换
                     Object x = awaitFulfill(s, e, timed, nanos);
                     if (x == s) {                   // wait was cancelled
                         clean(t, s);
@@ -659,13 +700,15 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                             s.item = s;
                         s.waiter = null;
                     }
+                    System.out.println(Thread.currentThread().getId() + "return, ,x="+x+";e="+e);
                     return (x != null)? x : e;
-
                 } else {                            // complementary-mode
+                    //当前头节点的下一节点,即对方线程创建的节点
                     QNode m = h.next;               // node to fulfill
+                    //非一致性读
                     if (t != tail || m == null || h != head)
                         continue;                   // inconsistent read
-
+                    System.out.println(Thread.currentThread().getId() + " h.next, h="+h+";m="+m);
                     Object x = m.item;
                     if (isData == (x != null) ||    // m already fulfilled
                         x == m ||                   // m cancelled
@@ -673,9 +716,12 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                         advanceHead(h, m);          // dequeue and retry
                         continue;
                     }
-
+                    //头节点h指向下一节点
                     advanceHead(h, m);              // successfully fulfilled
+                    System.out.println(Thread.currentThread().getId() + " advanceHead, h="+h+";m="+m);
+                    //唤醒对方等待的线程
                     LockSupport.unpark(m.waiter);
+                    System.out.println(Thread.currentThread().getId() + " reuturn , x="+x+";e="+e);
                     return (x != null)? x : e;
                 }
             }
@@ -692,16 +738,24 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
          */
         Object awaitFulfill(QNode s, Object e, boolean timed, long nanos) {
             /* Same idea as TransferStack.awaitFulfill */
+            //与TransferStack.awaitFulfill的实现类似
+            System.out.println(Thread.currentThread().getId() + " awaitFulfill, ,s="+s+";e="+e);
             long lastTime = (timed)? System.nanoTime() : 0;
             Thread w = Thread.currentThread();
             int spins = ((head.next == s) ?
                          (timed? maxTimedSpins : maxUntimedSpins) : 0);
             for (;;) {
+                //线程被中断，取消
                 if (w.isInterrupted())
                     s.tryCancel(e);
+                //获取节点中的元素
                 Object x = s.item;
+                System.out.println(Thread.currentThread().getId() + " awaitFulfill, ,x="+x+";e="+e);
+                //如果当前节点的元素和原来的元素不一样，说明已经被对方线程交换
+                //返回对方的元素
                 if (x != e)
                     return x;
+                //超时版本
                 if (timed) {
                     long now = System.nanoTime();
                     nanos -= now - lastTime;
@@ -711,13 +765,17 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                         continue;
                     }
                 }
+                //自旋次数
                 if (spins > 0)
                     --spins;
                 else if (s.waiter == null)
+                    //自旋次数小于等于0，设置等待的线程
                     s.waiter = w;
                 else if (!timed)
+                    //阻塞当前线程
                     LockSupport.park(this);
                 else if (nanos > spinForTimeoutThreshold)
+                   //有超时的阻塞当前线程
                     LockSupport.parkNanos(this, nanos);
             }
         }
